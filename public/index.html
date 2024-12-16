@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Application</title>
+</head>
+<body>
+    <h1>Chat Application</h1>
+    <div id="auth">
+        <h2>Register</h2>
+        <input id="registerUsername" type="text" placeholder="Username" />
+        <input id="registerPassword" type="password" placeholder="Password" />
+        <button id="registerButton">Register</button>
+
+        <h2>Login</h2>
+        <input id="loginUsername" type="text" placeholder="Username" />
+        <input id ="loginPassword" type="password" placeholder="Password" />
+        <button id="loginButton">Login</button>
+    </div>
+
+    <div id="chat" style="display:none;">
+        <h2>Users</h2>
+        <ul id="userList"></ul>
+        <h2>Messages</h2>
+        <div id="messages"></div>
+        <input id="messageInput" type="text" placeholder="Type a message..." />
+        <button id="sendMessageButton">Send</button>
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:3000');
+        let currentUser ;
+
+        document.getElementById('registerButton').onclick = async () => {
+            const username = document.getElementById('registerUsername').value;
+            const password = document.getElementById('registerPassword').value;
+            await fetch('/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            alert('User  registered');
+        };
+
+        document.getElementById('loginButton').onclick = async () => {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            const response = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            if (response.ok) {
+                currentUser  = username;
+                document.getElementById('auth').style.display = 'none';
+                document.getElementById('chat').style.display = 'block';
+                loadUsers();
+            } else {
+                alert('Invalid credentials');
+            }
+        };
+
+        async function loadUsers() {
+            const response = await fetch('/users');
+            const users = await response.json();
+            const userList = document.getElementById('userList');
+            userList.innerHTML = '';
+            users.forEach(user => {
+                const li = document.createElement('li');
+                li.textContent = user.username;
+                li.onclick = () => loadMessages(user.username);
+                userList.appendChild(li);
+            });
+        }
+
+        async function loadMessages(receiver) {
+            const response = await fetch(`/messages/${receiver}`);
+            const messages = await response.json();
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+            messages.forEach(msg => {
+                const p = document.createElement('p');
+                p.textContent = `${msg.sender}: ${msg.text}`;
+                messagesDiv.appendChild(p);
+            });
+            document.getElementById('sendMessageButton').onclick = () => sendMessage(receiver);
+        }
+
+        function sendMessage(receiver) {
+            const text = document.getElementById('messageInput').value;
+            ws.send(JSON.stringify({ sender: currentUser , receiver, text }));
+            document.getElementById('messageInput').value = '';
+        }
+
+        ws.onmessage = (event) => {
+            const { sender, text } = JSON.parse(event.data);
+            const p = document.createElement('p');
+            p.textContent = `${sender}: ${text}`;
+            document.getElementById('messages').appendChild(p);
+        };
+    </script>
+</body>
+</html>
